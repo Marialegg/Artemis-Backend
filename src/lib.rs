@@ -26,8 +26,13 @@ near_sdk::setup_alloc!();
 pub struct ProfileObject {
     name: Option<String>,
     last_name: Option<String>,
+    dni: Option<String>,
+    profession: Option<String>,
+    biography: Option<String>,
+    discord: Option<String>,
     email: Option<String>,
     country: Option<String>,
+    purchased_courses: Option<Vec<i128>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,9 +41,13 @@ pub struct ProfileJson {
     user_id: AccountId,
     name: String,
     last_name: String,
-    email: String,
+    dni: String,
+    profession: Option<String>,
+    biography: Option<String>,
+    discord: Option<String>,
+    email: Option<String>,
     country: String,
-    purchased_courses: Option<Vec<i128>>
+    purchased_courses: Option<Vec<i128>>,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
@@ -142,10 +151,16 @@ impl Contract {
         self.administrators.remove(index);
     }
 
-    pub fn set_profile(&mut self, name: Option<String>,
+    pub fn set_profile(&mut self, 
+        name: Option<String>,
         last_name: Option<String>,
+        dni: Option<String>,
+        profession: Option<String>,
+        biography: Option<String>,
+        discord: Option<String>,
         email: Option<String>,
         country: Option<String>,
+        purchased_courses: Option<Vec<i128>>,
     ) -> ProfileObject {
         let profile = self.profiles.get(&env::signer_account_id());
         if profile.is_some() {
@@ -155,8 +170,13 @@ impl Contract {
         let data = ProfileObject {
             name: name,
             last_name: last_name,
+            dni: dni,
+            profession: profession,
+            biography: biography,
+            discord: discord,
             email: email,
-            country: country
+            country: country,
+            purchased_courses: purchased_courses,
         };
 
         self.profiles.insert(&env::signer_account_id(), &data);
@@ -166,20 +186,35 @@ impl Contract {
 
     pub fn put_profile(&mut self, name: Option<String>,
         last_name: Option<String>,
+        dni: Option<String>,
+        profession: Option<String>,
+        biography: Option<String>,
+        discord: Option<String>,
         email: Option<String>,
         country: Option<String>,
+        purchased_courses: Option<Vec<i128>>,
     ) -> ProfileObject {
         let return_data = ProfileObject {
             name: name.clone(),
             last_name: last_name.clone(),
+            dni: dni.clone(),
+            profession: profession.clone(),
+            biography: biography.clone(),
+            discord: discord.clone(),
             email: email.clone(),
             country: country.clone(),
+            purchased_courses: purchased_courses.clone(),
         };
         let mut profile = self.profiles.get(&env::signer_account_id()).expect("Profile does not exist");
         profile.name = name;
         profile.last_name = last_name;
+        profile.dni = dni;
+        profile.profession = profession;
+        profile.biography = biography;
+        profile.discord = discord;
         profile.email = email;
         profile.country = country;
+        profile.purchased_courses = profile.purchased_courses;
 
         self.profiles.insert(&env::signer_account_id(), &profile);
 
@@ -195,8 +230,13 @@ impl Contract {
         ProfileObject {
             name: profile.name,
             last_name: profile.last_name,
+            dni: profile.dni,
+            profession: profile.profession,
+            biography: profile.biography,
+            discord: profile.discord,
             email: profile.email,
             country: profile.country,
+            purchased_courses: profile.purchased_courses,
         }
 	}
 
@@ -243,27 +283,6 @@ impl Contract {
         categories
     }
 
-    pub fn set_profile(&mut self, name: Option<String>,
-        last_name: Option<String>,
-        email: Option<String>,
-        country: Option<String>,
-    ) -> ProfileObject {
-        let profile = self.profiles.get(&env::signer_account_id());
-        if profile.is_some() {
-            env::panic(b"profile already exists");
-        }
-        
-        let data = ProfileObject {
-            name: name,
-            last_name: last_name,
-            email: email,
-            country: country
-        };
-
-        self.profiles.insert(&env::signer_account_id(), &data);
-        env::log(b"profile Created");
-        data
-    }
 
 
 }
