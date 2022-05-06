@@ -24,9 +24,9 @@ near_sdk::setup_alloc!();
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct ProfileObject {
-    name: Option<String>,
-    last_name: Option<String>,
-    dni: Option<String>,
+    name: String,
+    last_name: String,
+    dni: String,
     profession: Option<String>,
     biography: Option<String>,
     discord: Option<String>,
@@ -104,6 +104,7 @@ pub struct CoursesJson {
 pub struct Contract {
     vault_id: AccountId,
     profiles: UnorderedMap<AccountId, ProfileObject>,
+    id_categories: i128,
     categories: Vec<CategoriesJson>,
     id_courses: i128,
     courses: UnorderedMap<i128, CoursesJson>,
@@ -126,6 +127,7 @@ impl Contract {
         Self {
             vault_id: vault_id.to_string(),
             profiles: UnorderedMap::new(b"s".to_vec()),
+            id_categories: 0,
             categories: Vec::new(),
             id_courses: 0,
             courses: UnorderedMap::new(b"s".to_vec()),
@@ -152,9 +154,9 @@ impl Contract {
     }
 
     pub fn set_profile(&mut self, 
-        name: Option<String>,
-        last_name: Option<String>,
-        dni: Option<String>,
+        name: String,
+        last_name: String,
+        dni: String,
         profession: Option<String>,
         biography: Option<String>,
         discord: Option<String>,
@@ -184,9 +186,9 @@ impl Contract {
         data
     }
 
-    pub fn put_profile(&mut self, name: Option<String>,
-        last_name: Option<String>,
-        dni: Option<String>,
+    pub fn put_profile(&mut self, name: String,
+        last_name: String,
+        dni: String,
         profession: Option<String>,
         biography: Option<String>,
         discord: Option<String>,
@@ -242,9 +244,9 @@ impl Contract {
 
     pub fn set_category(&mut self, name: String, img: String) -> CategoriesJson {      
         self.administrators.iter().find(|&x| x == &env::signer_account_id()).expect("Only administrators can set categories");
-        let category_id: i128 = (self.categories.len() + 1) as i128;
+        self.id_categories += 1;
         let data = CategoriesJson {
-            id: category_id,
+            id: self.id_categories,
             name: name.to_string(),
             img: img.to_string(),
         };
@@ -281,6 +283,14 @@ impl Contract {
             }).collect();
         }
         categories
+    }
+
+    pub fn delete_category(&mut self, category_id: i128) {
+        self.administrators.iter().find(|&x| x == &env::signer_account_id()).expect("Only admins can edit categories");
+        let index = self.categories.iter().position(|x| x.id == category_id).expect("Category does not exist");
+        self.categories.remove(index);
+
+        env::log(b"Category deleted");
     }
 
 
