@@ -24,29 +24,7 @@ near_sdk::setup_alloc!();
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct ProfileObject {
-    name: String,
-    last_name: String,
-    dni: String,
-    profession: Option<String>,
-    biography: Option<String>,
-    discord: Option<String>,
-    email: Option<String>,
-    country: Option<String>,
-    purchased_courses: Option<Vec<i128>>,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(crate = "near_sdk::serde")]
-pub struct ProfileJson {
     user_id: AccountId,
-    name: String,
-    last_name: String,
-    dni: String,
-    profession: Option<String>,
-    biography: Option<String>,
-    discord: Option<String>,
-    email: Option<String>,
-    country: String,
     purchased_courses: Option<Vec<i128>>,
 }
 
@@ -68,35 +46,25 @@ pub struct CategoriesJson {
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct TemplateObject {
-	name: String,
-    media: Option<String>,
-    text: Option<String>,
+	title: String,
+    description: String,
+    content: String,
     tipo: i8, // 1 Video, 2 Text
-}
-
-#[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone)]
-#[serde(crate = "near_sdk::serde")]
-pub struct TemplateJson {
-    id: i128,
-	name: String,
-    media: Option<String>,
-    text: Option<String>,
-    tipo: i8, // 1 Media, 2 Text, 3 Cuestionario
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
-pub struct CoursesJson {
+pub struct CoursesObject {
     id: i128,
     creator_id: AccountId,
     title: String,
+    categories: CategoriesJson,
     short_description: String,
     long_description: String,
     img: String,
     content: Vec<TemplateObject>,
     price: Balance,
     inscriptions: Option<Vec<AccountId>>,
-    category: HashMap<i128, CategoriesObject>,
 }
 
 #[near_bindgen]
@@ -107,7 +75,7 @@ pub struct Contract {
     id_categories: i128,
     categories: Vec<CategoriesJson>,
     id_courses: i128,
-    courses: UnorderedMap<i128, CoursesJson>,
+    courses: UnorderedMap<i128, CoursesObject>,
     administrators: Vec<AccountId>,
 }
 
@@ -154,14 +122,6 @@ impl Contract {
     }
 
     pub fn set_profile(&mut self, 
-        name: String,
-        last_name: String,
-        dni: String,
-        profession: Option<String>,
-        biography: Option<String>,
-        discord: Option<String>,
-        email: Option<String>,
-        country: Option<String>,
         purchased_courses: Option<Vec<i128>>,
     ) -> ProfileObject {
         let profile = self.profiles.get(&env::signer_account_id());
@@ -170,14 +130,7 @@ impl Contract {
         }
         
         let data = ProfileObject {
-            name: name,
-            last_name: last_name,
-            dni: dni,
-            profession: profession,
-            biography: biography,
-            discord: discord,
-            email: email,
-            country: country,
+            user_id: env::signer_account_id().to_string(),
             purchased_courses: purchased_courses,
         };
 
@@ -186,36 +139,15 @@ impl Contract {
         data
     }
 
-    pub fn put_profile(&mut self, name: String,
-        last_name: String,
-        dni: String,
-        profession: Option<String>,
-        biography: Option<String>,
-        discord: Option<String>,
-        email: Option<String>,
-        country: Option<String>,
+    pub fn put_profile(&mut self, 
         purchased_courses: Option<Vec<i128>>,
     ) -> ProfileObject {
         let return_data = ProfileObject {
-            name: name.clone(),
-            last_name: last_name.clone(),
-            dni: dni.clone(),
-            profession: profession.clone(),
-            biography: biography.clone(),
-            discord: discord.clone(),
-            email: email.clone(),
-            country: country.clone(),
+            user_id: env::signer_account_id().to_string(),
             purchased_courses: purchased_courses.clone(),
         };
         let mut profile = self.profiles.get(&env::signer_account_id()).expect("Profile does not exist");
-        profile.name = name;
-        profile.last_name = last_name;
-        profile.dni = dni;
-        profile.profession = profession;
-        profile.biography = biography;
-        profile.discord = discord;
-        profile.email = email;
-        profile.country = country;
+        profile.user_id = env::signer_account_id().to_string();
         profile.purchased_courses = profile.purchased_courses;
 
         self.profiles.insert(&env::signer_account_id(), &profile);
@@ -230,14 +162,7 @@ impl Contract {
         let profile = self.profiles.get(&user_id).expect("Profile does not exist");
 
         ProfileObject {
-            name: profile.name,
-            last_name: profile.last_name,
-            dni: profile.dni,
-            profession: profile.profession,
-            biography: profile.biography,
-            discord: profile.discord,
-            email: profile.email,
-            country: profile.country,
+            user_id: profile.user_id,
             purchased_courses: profile.purchased_courses,
         }
 	}
@@ -292,7 +217,36 @@ impl Contract {
 
         env::log(b"Category deleted");
     }
+    
+    pub fn publish_course(&mut self, 
+        title: String,
+        categories: CategoriesJson,
+        short_description: String,
+        long_description: String,
+        img: String,
+        content: Vec<TemplateObject>,
+        price: Balance,
+        inscriptions: Option<Vec<AccountId>>,
+    ) -> CoursesObject {
+        
+        self.id_courses += 1;
+        let data = CoursesObject {
+            id: self.id_courses,
+            creator_id: env::signer_account_id().to_string(),
+            title: title.to_string(),
+            categories: categories,
+            short_description: short_description.to_string(),
+            long_description: long_description.to_string(),
+            img: img.to_string(),
+            content: content,
+            price: price,
+            inscriptions: inscriptions,
+        };
 
+        self.courses.insert(&self.id_courses, &data);
+        env::log(b"published course");
+        data
+    }
 
 
 }
