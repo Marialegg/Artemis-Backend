@@ -52,9 +52,31 @@ pub struct TemplateObject {
     tipo: i8, // 1 Video, 2 Text
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct CoursesObject {
+    id: i128,
+    creator_id: AccountId,
+    title: String,
+    categories: CategoriesJson,
+    short_description: String,
+    long_description: String,
+    img: String,
+    content: Vec<TemplateObject>,
+    price: Balance,
+    inscriptions: Option<Vec<AccountId>>,
+    reviews: Option<Vec<Review>>,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+#[serde(crate = "near_sdk::serde")]
+pub struct Review {
+    user_id: AccountId,
+    review: String,
+    critics: i8,title
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct CoursesInstructor {
     id: i128,
     creator_id: AccountId,
     title: String,
@@ -226,7 +248,6 @@ impl Contract {
         img: String,
         content: Vec<TemplateObject>,
         price: Balance,
-        inscriptions: Option<Vec<AccountId>>,
     ) -> CoursesObject {
         
         self.id_courses += 1;
@@ -240,7 +261,8 @@ impl Contract {
             img: img.to_string(),
             content: content,
             price: price,
-            inscriptions: inscriptions,
+            inscriptions: None,
+            reviews: None,
         };
 
         self.courses.insert(&self.id_courses, &data);
@@ -248,7 +270,25 @@ impl Contract {
         data
     }
 
-
+    pub fn get_cources_intructor(&self, user_id: Option<String>) -> Vec<CoursesObject> {
+        if user_id.is_some() {
+            self.courses.iter().filter(|(_k, x)| x.creator_id == user_id.clone().unwrap().to_string()).map(|(_k, x)| CoursesObject {
+                id: x.id,
+                creator_id: x.creator_id.to_string(),
+                title: x.title.to_string(),
+                categories: x.categories.clone(),
+                short_description: x.short_description.to_string(),
+                long_description: x.long_description.to_string(),
+                img: x.img.to_string(),
+                content: x.content.clone(),
+                price: x.price,
+                inscriptions: x.inscriptions.clone(),
+                reviews: x.reviews.clone(),
+            }).collect()
+        } else {
+            env::panic(b"Not user");
+        }
+    }
 }
 
 // unlike the struct's functions above, this function cannot use attributes #[derive(…)] or #[near_bindgen]
