@@ -99,6 +99,7 @@ pub struct MarketView {
     title: String,
     categories: CategoriesJson,
     short_description: String,
+    long_description: String,
     img: String,
     price: Balance,
 }
@@ -304,16 +305,84 @@ impl Contract {
         }
     }
 
-    pub fn get_market_cources(&self) -> Vec<MarketView> {
-        self.courses.iter().map(|(_k, x)| MarketView {
+    pub fn get_market_cources(&self,
+        cource_id: Option<i128>,
+        creator_id: Option<AccountId>,
+        category_id: Option<i128>,
+        from_index: Option<u128>,
+        limit: Option<u64>
+    ) -> Vec<MarketView> {
+
+        let start_index: u128 = from_index.map(From::from).unwrap_or_default();
+        assert!((self.courses.len() as u128) > start_index, "Out of bounds, please use a smaller from_index.");
+        let limit = limit.map(|v| v as usize).unwrap_or(usize::MAX);
+        assert_ne!(limit, 0, "Cannot provide limit of 0.");
+
+        let mut result: Vec<CoursesObject> = self.courses.iter().map(|(_k, v)| v).collect::<Vec<CoursesObject>>();
+
+        if creator_id.is_some() {
+            let creator = creator_id.unwrap().clone();
+            result = result.iter().filter(|x| x.creator_id == creator).map(|x| x.clone()).collect();
+        };
+
+        if category_id.is_some() {
+            let category = category_id.unwrap().clone();
+            result = result.iter().filter(|x| x.categories.id == category).map(|x| x.clone()).collect();
+        };
+
+        if cource_id.is_some() {
+            let cource = cource_id.unwrap().clone();
+            result = result.iter().filter(|x| x.id == cource).map(|x| x.clone()).collect();
+        };
+
+        result.iter()
+        .skip(start_index as usize)
+        .take(limit)
+        .map(|x| MarketView {
             id: x.id,
             creator_id: x.creator_id.to_string(),
             title: x.title.to_string(),
             categories: x.categories.clone(),
             short_description: x.short_description.to_string(),
+            long_description: x.long_description.to_string(),
             img: x.img.to_string(),
             price: x.price,
         }).collect()
+    }
+
+    pub fn get_recent_cources(&self,
+        number_courses: u64,
+    ) -> Vec<MarketView> {
+
+        if self.courses.len() > number_courses {
+            let index: u64 = self.courses.len() - number_courses;
+            let result: Vec<CoursesObject> = self.courses.iter().map(|(_k, v)| v).collect::<Vec<CoursesObject>>();
+
+            result.iter()
+            .skip(index as usize)
+            .map(|x| MarketView {
+                id: x.id,
+                creator_id: x.creator_id.to_string(),
+                title: x.title.to_string(),
+                categories: x.categories.clone(),
+                short_description: x.short_description.to_string(),
+                long_description: x.long_description.to_string(),
+                img: x.img.to_string(),
+                price: x.price,
+            }).collect()
+        } else {
+            self.courses.iter().map(|(_k, x)| MarketView {
+                id: x.id,
+                creator_id: x.creator_id.to_string(),
+                title: x.title.to_string(),
+                categories: x.categories.clone(),
+                short_description: x.short_description.to_string(),
+                long_description: x.long_description.to_string(),
+                img: x.img.to_string(),
+                price: x.price,
+            }).collect()
+        }
+        
     }
 }
 
