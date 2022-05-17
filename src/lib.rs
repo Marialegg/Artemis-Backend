@@ -73,7 +73,9 @@ pub struct CoursesObject {
 pub struct Review {
     user_id: AccountId,
     review: String,
-    critics: i8,title
+    critics: i8,
+}
+
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct CoursesInstructor {
@@ -87,6 +89,18 @@ pub struct CoursesInstructor {
     content: Vec<TemplateObject>,
     price: Balance,
     inscriptions: Option<Vec<AccountId>>,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct MarketView {
+    id: i128,
+    creator_id: AccountId,
+    title: String,
+    categories: CategoriesJson,
+    short_description: String,
+    img: String,
+    price: Balance,
 }
 
 #[near_bindgen]
@@ -288,6 +302,18 @@ impl Contract {
         } else {
             env::panic(b"Not user");
         }
+    }
+
+    pub fn get_market_cources(&self) -> Vec<MarketView> {
+        self.courses.iter().map(|(_k, x)| MarketView {
+            id: x.id,
+            creator_id: x.creator_id.to_string(),
+            title: x.title.to_string(),
+            categories: x.categories.clone(),
+            short_description: x.short_description.to_string(),
+            img: x.img.to_string(),
+            price: x.price,
+        }).collect()
     }
 }
 
