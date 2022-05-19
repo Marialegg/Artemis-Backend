@@ -285,7 +285,7 @@ impl Contract {
         data
     }
 
-    pub fn get_cources_intructor(&self, user_id: Option<String>) -> Vec<CoursesObject> {
+    pub fn get_courses_intructor(&self, user_id: Option<String>) -> Vec<CoursesObject> {
         if user_id.is_some() {
             self.courses.iter().filter(|(_k, x)| x.creator_id == user_id.clone().unwrap().to_string()).map(|(_k, x)| CoursesObject {
                 id: x.id,
@@ -305,8 +305,8 @@ impl Contract {
         }
     }
 
-    pub fn get_market_cources(&self,
-        cource_id: Option<i128>,
+    pub fn get_market_courses(&self,
+        course_id: Option<i128>,
         creator_id: Option<AccountId>,
         category_id: Option<i128>,
         from_index: Option<u128>,
@@ -330,9 +330,9 @@ impl Contract {
             result = result.iter().filter(|x| x.categories.id == category).map(|x| x.clone()).collect();
         };
 
-        if cource_id.is_some() {
-            let cource = cource_id.unwrap().clone();
-            result = result.iter().filter(|x| x.id == cource).map(|x| x.clone()).collect();
+        if course_id.is_some() {
+            let course = course_id.unwrap().clone();
+            result = result.iter().filter(|x| x.id == course).map(|x| x.clone()).collect();
         };
 
         result.iter()
@@ -350,7 +350,7 @@ impl Contract {
         }).collect()
     }
 
-    pub fn get_recent_cources(&self,
+    pub fn get_recent_courses(&self,
         number_courses: u64,
     ) -> Vec<MarketView> {
 
@@ -383,6 +383,25 @@ impl Contract {
             }).collect()
         }
         
+    }
+
+    pub fn delete_course(&mut self, course_id: i128) {
+        let course = self.courses.get(&course_id).expect("Course does not exist");
+
+        if course.creator_id == env::signer_account_id().to_string() {
+            if course.inscriptions == None {
+                self.courses.remove(&course_id);
+                env::log(b"Course deleted")
+            } else {
+                env::panic(b"Can't delete course")
+            }
+        } else {
+            env::panic(b"No permission")
+        }
+    }
+
+    pub fn get_course_size(&self) -> u64 {
+        self.courses.len()
     }
 }
 
