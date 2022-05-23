@@ -400,8 +400,22 @@ impl Contract {
         }
     }
 
-    pub fn get_course_size(&self) -> u64 {
-        self.courses.len()
+    pub fn get_course_size(&self,
+        creator_id: Option<AccountId>,
+        category_id: Option<i128>,) -> u64 {
+        let mut result: Vec<CoursesObject> = self.courses.iter().map(|(_k, v)| v).collect::<Vec<CoursesObject>>();
+
+        if creator_id.is_some() {
+            let creator = creator_id.unwrap().clone();
+            result = result.iter().filter(|x| x.creator_id == creator).map(|x| x.clone()).collect();
+        };
+
+        if category_id.is_some() {
+            let category = category_id.unwrap().clone();
+            result = result.iter().filter(|x| x.categories.id == category).map(|x| x.clone()).collect();
+        };
+
+        result.len().try_into().unwrap()
     }
 }
 
