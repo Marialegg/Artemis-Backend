@@ -25,7 +25,7 @@ pub const VAULT_FEE: u128 = 500;
 #[serde(crate = "near_sdk::serde")]
 pub struct ProfileObject {
     user_id: AccountId,
-    purchased_courses: Option<Vec<i128>>,
+    purchased_courses: Vec<i128>,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
@@ -65,7 +65,7 @@ pub struct CoursesObject {
     content: Vec<TemplateObject>,
     price: Balance,
     inscriptions: Vec<AccountId>,
-    reviews: Option<Vec<Review>>,
+    reviews: Vec<Review>,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
@@ -108,7 +108,7 @@ pub struct MarketView {
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
     vault_id: AccountId,
-    profiles: UnorderedMap<AccountId, ProfileObject>,
+    profiles: Vec<ProfileObject>,
     id_categories: i128,
     categories: Vec<CategoriesJson>,
     id_courses: i128,
@@ -119,7 +119,7 @@ pub struct Contract {
 #[near_bindgen]
 impl Contract {
     #[init]
-    pub fn new_default_meta(owner_id: ValidAccountId, vault_id: ValidAccountId) -> Self {
+    pub fn new_default(owner_id: ValidAccountId, vault_id: ValidAccountId) -> Self {
         Self::new(
             owner_id,
             vault_id,
@@ -131,7 +131,7 @@ impl Contract {
         assert!(!env::state_exists(), "Already initialized");
         Self {
             vault_id: vault_id.to_string(),
-            profiles: UnorderedMap::new(b"s".to_vec()),
+            profiles: Vec::new(),
             id_categories: 0,
             categories: Vec::new(),
             id_courses: 0,
@@ -158,51 +158,17 @@ impl Contract {
         self.administrators.remove(index);
     }
 
-    pub fn set_profile(&mut self, 
-        purchased_courses: Option<Vec<i128>>,
-    ) -> ProfileObject {
-        let profile = self.profiles.get(&env::signer_account_id());
-        if profile.is_some() {
-            env::panic(b"profile already exists");
+    pub fn get_profile(&self, user_id: Option<AccountId>) -> Vec<ProfileObject> {
+        let mut profiles = self.profiles.clone();
+
+        if user_id.is_some() {
+            profiles = self.profiles.iter().filter(|x| x.user_id == user_id.clone().unwrap()).map(|x| ProfileObject {
+                user_id: x.user_id.to_string(),
+                purchased_courses: x.purchased_courses.clone(),
+            }).collect();
         }
-        
-        let data = ProfileObject {
-            user_id: env::signer_account_id().to_string(),
-            purchased_courses: purchased_courses,
-        };
-
-        self.profiles.insert(&env::signer_account_id(), &data);
-        env::log(b"profile Created");
-        data
+        profiles
     }
-
-    pub fn put_profile(&mut self, 
-        purchased_courses: Option<Vec<i128>>,
-    ) -> ProfileObject {
-        let return_data = ProfileObject {
-            user_id: env::signer_account_id().to_string(),
-            purchased_courses: purchased_courses.clone(),
-        };
-        let mut profile = self.profiles.get(&env::signer_account_id()).expect("Profile does not exist");
-        profile.user_id = env::signer_account_id().to_string();
-        profile.purchased_courses = profile.purchased_courses;
-
-        self.profiles.insert(&env::signer_account_id(), &profile);
-
-        env::log(b"profile Update");
-
-        return_data
-    }
-
-
-    pub fn get_profile(&self, user_id: AccountId) -> ProfileObject {
-        let profile = self.profiles.get(&user_id).expect("Profile does not exist");
-
-        ProfileObject {
-            user_id: profile.user_id,
-            purchased_courses: profile.purchased_courses,
-        }
-	}
 
     pub fn set_category(&mut self, name: String, img: String) -> CategoriesJson {      
         self.administrators.iter().find(|&x| x == &env::signer_account_id()).expect("Only administrators can set categories");
@@ -277,7 +243,7 @@ impl Contract {
             content: content,
             price: price.0,
             inscriptions: Vec::new(),
-            reviews: None,
+            reviews: Vec::new(),
         };
 
         self.courses.insert(&self.id_courses, &data);
@@ -303,6 +269,28 @@ impl Contract {
         } else {
             env::panic(b"Not user");
         }
+    }
+
+    pub fn get_courses_purchased(&self, user_id: String) -> Vec<CoursesObject> {
+        let index = self.profiles.iter().position(|x| x.user_id == user_id).expect("Profile does not exist");
+
+        let mut courses_purchased = Vec::new();
+
+        for i in 0..self.profiles[index].purchased_courses.len() {
+            courses_purchased.push(self.courses.get(&self.profiles[index].purchased_courses[i]).expect("Artemis: Course does not exists"));
+        }
+
+        courses_purchased
+    }
+
+    pub fn get_course_id(&self, user_id: String, course_id: i128) -> CoursesObject {
+        let index = self.profiles.iter().position(|x| x.user_id == user_id).expect("Profile does not exist");
+
+        self.profiles[index].purchased_courses.iter().position(|k| k == &course_id).expect("Not permission");
+
+        let course = self.courses.get(&course_id).expect("Course does not exist");
+        
+        course
     }
 
     pub fn get_market_courses(&self,
@@ -381,8 +369,7 @@ impl Contract {
                 img: x.img.to_string(),
                 price: x.price,
             }).collect()
-        }
-        
+        }  
     }
 
     pub fn delete_course(&mut self, course_id: i128) {
@@ -426,6 +413,13 @@ impl Contract {
         let initial_storage_usage = env::storage_usage();
 
         let mut course = self.courses.get(&course_id).expect("Artemis: Course does not exist");
+
+        let index = course.inscriptions.iter().position(|x| x.to_string() == env::signer_account_id().to_string());
+
+        if index.is_some() {
+            env::panic(b"Artemis: User already enrolled in the course");
+        }
+
         let price: Balance = course.price;
         let attached_deposit = env::attached_deposit();
         assert!(
@@ -447,7 +441,27 @@ impl Contract {
         course.inscriptions.push(env::signer_account_id().to_string());
         self.courses.insert(&course_id, &course);
 
+        self.profile_inscription(course_id);
+
         course
+    }
+
+    fn profile_inscription(&mut self, course_id: i128) {
+        let indexaux = self.profiles.iter().position(|x| x.user_id == env::signer_account_id());//.expect("Category does not exist");
+
+        if indexaux.is_some() {
+            let index = self.profiles.iter().position(|x| x.user_id == env::signer_account_id()).expect("Profile does not exist");
+            self.profiles[index].user_id = env::signer_account_id().to_string();
+            self.profiles[index].purchased_courses.push(course_id);
+        } else {
+            let data = ProfileObject {
+                user_id: env::signer_account_id().to_string(),
+                purchased_courses: vec![course_id],
+            };
+            
+            self.profiles.push(data.clone());
+            env::log(b"profile and course purchased Created");
+        }
     }
 
 }
