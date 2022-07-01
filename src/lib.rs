@@ -23,9 +23,16 @@ pub const VAULT_FEE: u128 = 500;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
+pub struct CoursePurchased {
+    course_id: i128,
+    pass_certification: bool,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+#[serde(crate = "near_sdk::serde")]
 pub struct ProfileObject {
     user_id: AccountId,
-    purchased_courses: Vec<i128>,
+    purchased_courses: Vec<CoursePurchased>,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
@@ -54,6 +61,13 @@ pub struct TemplateObject {
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
+pub struct TemplateView {
+	title: String,
+    tipo: i8, // 1 Video, 2 Text
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+#[serde(crate = "near_sdk::serde")]
 pub struct CoursesObject {
     id: i128,
     creator_id: AccountId,
@@ -64,7 +78,9 @@ pub struct CoursesObject {
     img: String,
     content: Vec<TemplateObject>,
     price: Balance,
+    price_certification: Balance,
     inscriptions: Vec<AccountId>,
+    rating: f32,
     reviews: Vec<Review>,
 }
 
@@ -78,21 +94,6 @@ pub struct Review {
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
-pub struct CoursesInstructor {
-    id: i128,
-    creator_id: AccountId,
-    title: String,
-    categories: CategoriesJson,
-    short_description: String,
-    long_description: String,
-    img: String,
-    content: Vec<TemplateObject>,
-    price: Balance,
-    inscriptions: Vec<AccountId>,
-}
-
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-#[serde(crate = "near_sdk::serde")]
 pub struct MarketView {
     id: i128,
     creator_id: AccountId,
@@ -101,7 +102,11 @@ pub struct MarketView {
     short_description: String,
     long_description: String,
     img: String,
+    content: Vec<TemplateView>,
     price: Balance,
+    price_certification: Balance,
+    rating: f32,
+    reviews: Vec<Review>,
 }
 
 #[near_bindgen]
@@ -229,6 +234,7 @@ impl Contract {
         img: String,
         content: Vec<TemplateObject>,
         price: U128,
+        price_certification: U128,
     ) -> CoursesObject {
         
         self.id_courses += 1;
@@ -242,7 +248,9 @@ impl Contract {
             img: img.to_string(),
             content: content,
             price: price.0,
+            price_certification: price_certification.0,
             inscriptions: Vec::new(),
+            rating: 0.0,
             reviews: Vec::new(),
         };
 
@@ -263,7 +271,9 @@ impl Contract {
                 img: x.img.to_string(),
                 content: x.content.clone(),
                 price: x.price,
+                price_certification: x.price_certification,
                 inscriptions: x.inscriptions.clone(),
+                rating: x.rating,
                 reviews: x.reviews.clone(),
             }).collect()
         } else {
@@ -277,7 +287,7 @@ impl Contract {
         let mut courses_purchased = Vec::new();
 
         for i in 0..self.profiles[index].purchased_courses.len() {
-            courses_purchased.push(self.courses.get(&self.profiles[index].purchased_courses[i]).expect("Artemis: Course does not exists"));
+            courses_purchased.push(self.courses.get(&self.profiles[index].purchased_courses[i].course_id).expect("Artemis: Course does not exists"));
         }
 
         courses_purchased
@@ -286,11 +296,19 @@ impl Contract {
     pub fn get_course_id(&self, user_id: String, course_id: i128) -> CoursesObject {
         let index = self.profiles.iter().position(|x| x.user_id == user_id).expect("Profile does not exist");
 
-        self.profiles[index].purchased_courses.iter().position(|k| k == &course_id).expect("Not permission");
+        self.profiles[index].purchased_courses.iter().position(|k| k.course_id == course_id).expect("Not permission");
 
         let course = self.courses.get(&course_id).expect("Course does not exist");
         
         course
+    }
+
+    pub fn get_pass_certification(&self, user_id: String, course_id: i128) -> CoursePurchased {
+        let index = self.profiles.iter().position(|x| x.user_id == user_id).expect("Profile does not exist");
+
+        let index_pass = self.profiles[index].purchased_courses.iter().position(|k| k.course_id == course_id).expect("Not permission");
+
+        self.profiles[index].purchased_courses[index_pass].clone()
     }
 
     pub fn get_market_courses(&self,
@@ -333,8 +351,15 @@ impl Contract {
             categories: x.categories.clone(),
             short_description: x.short_description.to_string(),
             long_description: x.long_description.to_string(),
+            content: x.content.iter().map(|x| TemplateView {
+                title: x.title.to_string(),
+                tipo: x.tipo,
+            }).collect(),
             img: x.img.to_string(),
             price: x.price,
+            price_certification: x.price_certification,
+            rating: x.rating,
+            reviews: x.reviews.clone(),
         }).collect()
     }
 
@@ -356,7 +381,14 @@ impl Contract {
                 short_description: x.short_description.to_string(),
                 long_description: x.long_description.to_string(),
                 img: x.img.to_string(),
+                content: x.content.iter().map(|x| TemplateView {
+                    title: x.title.to_string(),
+                    tipo: x.tipo,
+                }).collect(),
                 price: x.price,
+                price_certification: x.price_certification,
+                rating: x.rating,
+                reviews: x.reviews.clone(),
             }).collect()
         } else {
             self.courses.iter().map(|(_k, x)| MarketView {
@@ -367,7 +399,14 @@ impl Contract {
                 short_description: x.short_description.to_string(),
                 long_description: x.long_description.to_string(),
                 img: x.img.to_string(),
+                content: x.content.iter().map(|x| TemplateView {
+                    title: x.title.to_string(),
+                    tipo: x.tipo,
+                }).collect(),
                 price: x.price,
+                price_certification: x.price_certification,
+                rating: x.rating,
+                reviews: x.reviews.clone(),
             }).collect()
         }  
     }
@@ -446,22 +485,149 @@ impl Contract {
         course
     }
 
+    #[payable]
+    pub fn pass_certification_buy(
+        &mut self, 
+        course_id: i128, 
+    ) -> CoursePurchased {
+        let initial_storage_usage = env::storage_usage();
+
+        let course = self.courses.get(&course_id).expect("Artemis: Course does not exist");
+
+        let index = self.profiles.iter().position(|x| x.user_id == env::signer_account_id()).expect("Profile does not exist");
+
+        let price_certification: Balance = course.price_certification;
+        let attached_deposit = env::attached_deposit();
+        assert!(
+            attached_deposit >= price_certification,
+            "Artemis: attached deposit is less than price : {}",
+            price_certification
+        );
+
+        let for_vault = price_certification as u128 * VAULT_FEE / 10_000u128;
+        let price_deducted = price_certification - for_vault;
+        Promise::new(course.creator_id.to_string()).transfer(price_deducted);
+
+        if for_vault != 0 {
+            Promise::new(self.vault_id.clone()).transfer(for_vault);
+        }
+
+        refund_deposit(env::storage_usage() - initial_storage_usage, price_certification);
+
+        let index_course = self.profiles[index].purchased_courses.iter().position(|k| k.course_id == course_id).expect("Course does not buy");
+        self.profiles[index].purchased_courses[index_course].pass_certification = true;
+
+        self.profiles[index].purchased_courses[index_course].clone()
+    }
+
+    pub fn set_review(
+        &mut self, 
+        course_id: i128, 
+        review: String,
+        critics: i8,
+    ) -> Review {
+
+        let mut course = self.courses.get(&course_id).expect("Artemis: Course does not exist");
+
+        let index = course.reviews.iter().position(|x| x.user_id == env::signer_account_id().to_string());
+
+        let data = Review {
+            user_id: env::signer_account_id().to_string(),
+            review: review.to_string(),
+            critics: critics,
+        };
+
+        if index.is_some() {
+            let ind = course.reviews.iter().position(|x| x.user_id == env::signer_account_id().to_string()).expect("Artemis: Review does not exist");
+            course.reviews[ind] = data.clone();
+            let mut cont = 0.0;
+            for item in &course.reviews {
+                cont += item.critics as f32;
+            }
+            course.rating = cont / (course.reviews.len() as f32);
+            self.courses.insert(&course_id, &course);
+            return data
+        }
+
+        course.reviews.push(data.clone());
+        let mut cont = 0.0;
+        for item in &course.reviews {
+            cont += item.critics as f32;
+        }
+        course.rating = cont / (course.reviews.len() as f32);
+
+        self.courses.insert(&course_id, &course);
+
+        data
+    }
+
+    pub fn get_review(&self,
+        course_id: i128, 
+        user_id: AccountId
+    ) -> Vec<Review> {
+        let mut result: Vec<CoursesObject> = self.courses.iter().map(|(_k, v)| v).collect::<Vec<CoursesObject>>();
+
+        result = result.iter().filter(|x| x.id == course_id).map(|x| x.clone()).collect();
+
+        let review: Vec<Review> = result[0].reviews.iter().filter(|x| x.user_id == user_id).map(|x| x.clone()).collect();
+
+        review
+    }
+
     fn profile_inscription(&mut self, course_id: i128) {
         let indexaux = self.profiles.iter().position(|x| x.user_id == env::signer_account_id());//.expect("Category does not exist");
 
         if indexaux.is_some() {
             let index = self.profiles.iter().position(|x| x.user_id == env::signer_account_id()).expect("Profile does not exist");
             self.profiles[index].user_id = env::signer_account_id().to_string();
-            self.profiles[index].purchased_courses.push(course_id);
+            let course = CoursePurchased {
+                course_id: course_id,
+                pass_certification: false,
+            };
+            self.profiles[index].purchased_courses.push(course);
         } else {
+            let course = CoursePurchased {
+                course_id: course_id,
+                pass_certification: false,
+            };
             let data = ProfileObject {
                 user_id: env::signer_account_id().to_string(),
-                purchased_courses: vec![course_id],
+                purchased_courses: vec![course],
             };
             
             self.profiles.push(data.clone());
             env::log(b"profile and course purchased Created");
         }
+    }
+
+    pub fn get_courses_rating(&self, top: Option<i32>) -> Vec<MarketView> {
+        let top_limit = top.unwrap_or(12);
+
+        let mut top_courses: Vec<CoursesObject> = self.courses.iter()
+                                                .filter(|(_k, v)| v.rating > 0.0)
+                                                .map(|(_k, v)| v).collect::<Vec<CoursesObject>>();
+
+        top_courses.sort_by(|a, b| b.rating.partial_cmp(&a.rating).unwrap());
+        
+        top_courses.iter()
+        .take(top_limit as usize)
+        .map(|x| MarketView {
+            id: x.id,
+            creator_id: x.creator_id.to_string(),
+            title: x.title.to_string(),
+            categories: x.categories.clone(),
+            short_description: x.short_description.to_string(),
+            long_description: x.long_description.to_string(),
+            content: x.content.iter().map(|x| TemplateView {
+                title: x.title.to_string(),
+                tipo: x.tipo,
+            }).collect(),
+            img: x.img.to_string(),
+            price: x.price,
+            price_certification: x.price_certification,
+            rating: x.rating,
+            reviews: x.reviews.clone(),
+        }).collect()
     }
 
 }
