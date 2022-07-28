@@ -259,6 +259,42 @@ impl Contract {
         data
     }
 
+    pub fn put_course(&mut self, 
+        course_id: i128,
+        title: String,
+        categories: CategoriesJson,
+        short_description: String,
+        long_description: String,
+        img: String,
+        price: U128,
+        price_certification: U128,
+    ) -> CoursesObject {
+        let course = self.courses.get(&course_id).expect("Course does not exist");
+
+        if course.creator_id == env::signer_account_id().to_string() {
+            let data = CoursesObject {
+                id: course.id,
+                creator_id: course.creator_id,
+                title: title,
+                categories: categories,
+                short_description: short_description.to_string(),
+                long_description: long_description.to_string(),
+                img: img.to_string(),
+                content: course.content,
+                price: price.0,
+                price_certification: price_certification.0,
+                inscriptions: course.inscriptions,
+                rating: course.rating,
+                reviews: course.reviews,
+            };
+            self.courses.insert(&course_id, &data);
+            env::log(b"updated course");
+            data
+        } else {
+            env::panic(b"No permission")
+        }
+    }
+
     pub fn get_courses_intructor(&self, user_id: Option<String>) -> Vec<CoursesObject> {
         if user_id.is_some() {
             self.courses.iter().filter(|(_k, x)| x.creator_id == user_id.clone().unwrap().to_string()).map(|(_k, x)| CoursesObject {
@@ -516,6 +552,18 @@ impl Contract {
 
         let index_course = self.profiles[index].purchased_courses.iter().position(|k| k.course_id == course_id).expect("Course does not buy");
         self.profiles[index].purchased_courses[index_course].pass_certification = true;
+
+        self.profiles[index].purchased_courses[index_course].clone()
+    }
+
+    pub fn change_pass_certification(&mut self, user_id: AccountId, course_id: i128,) -> CoursePurchased {      
+        self.administrators.iter().find(|&x| x == &env::signer_account_id()).expect("Only administrators can set categories");
+        
+        let index = self.profiles.iter().position(|x| x.user_id == user_id.to_string()).expect("Profile does not exist");
+
+        let index_course = self.profiles[index].purchased_courses.iter().position(|k| k.course_id == course_id).expect("Course does not buy");
+
+        self.profiles[index].purchased_courses[index_course].pass_certification = false;
 
         self.profiles[index].purchased_courses[index_course].clone()
     }
